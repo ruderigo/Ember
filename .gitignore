@@ -1,0 +1,13 @@
+# build outputs
+/ember
+/render
+/looptest
+/rectest
+*.o
+# user data created on the device
+ember.cfg
+controls.cfg
+user_presets.cfg
+recordings/
+*.log
+*.wav
