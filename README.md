@@ -1,7 +1,7 @@
 # Ember
 
-[![CI](https://github.com/ruderigo/ember/actions/workflows/ci.yml/badge.svg)](https://github.com/ruderigo/ember/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/ruderigo/ember)](https://github.com/ruderigo/ember/releases/latest)
+[![CI](https://github.com/ruderigo/Ember/actions/workflows/ci.yml/badge.svg)](https://github.com/ruderigo/Ember/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/ruderigo/Ember)](https://github.com/ruderigo/Ember/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-orange)](LICENSE)
 
 Warm analog pads and a vocoder for the R36Max (ArkOS4Clone). Plays from the
@@ -13,13 +13,13 @@ vowel voice, and loops and records what you play.
 ## Install or update
 
 Grab the latest package from
-[Releases](https://github.com/ruderigo/ember/releases/latest). It includes a
+[Releases](https://github.com/ruderigo/Ember/releases/latest). It includes a
 prebuilt binary for ArkOS4Clone / dArkOS (Debian trixie, arm64).
 
 **Over Wi-Fi**, from an SSH session on the handheld:
 
 ```sh
-cd /roms/ports && curl -L https://github.com/ruderigo/ember/releases/latest/download/ember-arkos-arm64.tar.gz | tar xz --no-same-owner
+cd /roms/ports && curl -L https://github.com/ruderigo/Ember/releases/latest/download/ember-arkos-arm64.tar.gz | tar xz --no-same-owner
 ```
 
 **With the SD card**: unzip `ember-arkos-arm64.zip` into the `ports` folder.
