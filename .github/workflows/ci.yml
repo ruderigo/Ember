@@ -26,7 +26,7 @@ jobs:
             runner: ubuntu-24.04
     runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Debian trixie is the base of ArkOS4Clone, so the binary links against
       # the same glibc, SDL2 and ALSA versions the handheld has.
