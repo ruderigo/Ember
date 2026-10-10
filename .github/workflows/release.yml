@@ -1,10 +1,13 @@
 name: Release
 
-# Push a tag like v0.3.0 (matching the VERSION file) to publish a release with
-# ready-to-install packages for the handheld.
+# Two ways to publish a release with ready-to-install packages:
+#  - Actions tab > Release > Run workflow (on main): tags the commit as
+#    v + VERSION and publishes it. No git needed.
+#  - Or push a tag like v0.3.0 that matches the VERSION file.
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -15,13 +18,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Check the tag matches VERSION
+      - name: Work out the tag
+        id: tag
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          expected="v$(cat VERSION)"
-          if [ "$expected" != "$GITHUB_REF_NAME" ]; then
-            echo "::error::Tag $GITHUB_REF_NAME does not match the VERSION file ($expected)"
+          tag="v$(cat VERSION)"
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            if [ "$tag" != "$GITHUB_REF_NAME" ]; then
+              echo "::error::Tag $GITHUB_REF_NAME does not match the VERSION file ($tag)"
+              exit 1
+            fi
+          elif git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null; then
+            echo "::error::$tag already exists. Bump VERSION and add a CHANGELOG.md section first."
             exit 1
           fi
+          echo "name=$tag" >> "$GITHUB_OUTPUT"
 
       - name: Build, test and package for the handheld (arm64, Debian trixie)
         run: |
@@ -36,7 +48,8 @@ jobs:
 
       - name: Write release notes from CHANGELOG.md
         run: |
-          version="${GITHUB_REF_NAME#v}"
+          tag="${{ steps.tag.outputs.name }}"
+          version="${tag#v}"
           awk -v v="$version" '/^## \[/ { p = index($0, "[" v "]") > 0; next } /^\[[0-9.]+\]: / { next } p' CHANGELOG.md > notes.md
           if ! grep -q '[^[:space:]]' notes.md; then
             echo "::error::CHANGELOG.md has no section for $version"
@@ -49,7 +62,7 @@ jobs:
           **Over Wi-Fi**, from an SSH session on the handheld:
 
           \`\`\`sh
-          cd /roms/ports && curl -L https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/ember-arkos-arm64.tar.gz | tar xz --no-same-owner
+          cd /roms/ports && curl -L https://github.com/${GITHUB_REPOSITORY}/releases/download/${tag}/ember-arkos-arm64.tar.gz | tar xz --no-same-owner
           \`\`\`
 
           **Or with the SD card**: unzip \`ember-arkos-arm64.zip\` into the \`ports\` folder.
@@ -62,8 +75,11 @@ jobs:
       - name: Publish the release
         uses: softprops/action-gh-release@v2
         with:
-          name: Ember ${{ github.ref_name }}
+          tag_name: ${{ steps.tag.outputs.name }}
+          target_commitish: ${{ github.sha }}
+          name: Ember ${{ steps.tag.outputs.name }}
           body_path: notes.md
+          make_latest: true
           files: |
             dist/ember-arkos-arm64.zip
             dist/ember-arkos-arm64.tar.gz

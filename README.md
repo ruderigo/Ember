@@ -166,10 +166,10 @@ in `user_presets.cfg`; edit a slot's `name=` line over SSH to rename it.
   `make package` builds the release packages into `dist/`.
 - CI builds and tests every push on arm64 and x86_64 in Debian trixie, the
   same base as ArkOS4Clone, and uploads the packages as artifacts.
-- To release: update `VERSION` and `CHANGELOG.md`, commit, then tag
-  `v` + version (`git tag -a v0.3.0 -m "Ember 0.3.0" && git push --tags`).
-  The release workflow checks the tag matches `VERSION`, builds and tests
-  on arm64, and publishes the packages with notes from the changelog.
+- To release: update `VERSION` and add a `CHANGELOG.md` section, commit,
+  then open Actions > Release > Run workflow. It tags the commit as
+  `v` + version, builds and tests on arm64, and publishes the packages with
+  notes from the changelog. Pushing a matching `v*` tag does the same.
 
 ## Credits
 
