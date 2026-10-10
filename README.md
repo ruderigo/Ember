@@ -4,6 +4,13 @@
 [![Release](https://img.shields.io/github/v/release/ruderigo/Ember)](https://github.com/ruderigo/Ember/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-orange)](LICENSE)
 
+<p align="center">
+
+https://github.com/user-attachments/assets/af9c4be4-f6b5-49af-9e83-6d9c8543ede1
+
+</p>
+
+
 Warm analog pads and a vocoder for the R36Max (ArkOS4Clone). Plays from the
 handheld's buttons or a USB MIDI keyboard, vocodes a USB mic or a built-in
 vowel voice, and loops and records what you play.
