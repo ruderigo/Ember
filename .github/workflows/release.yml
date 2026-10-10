@@ -1,0 +1,71 @@
+name: Release
+
+# Push a tag like v0.3.0 (matching the VERSION file) to publish a release with
+# ready-to-install packages for the handheld.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the tag matches VERSION
+        run: |
+          expected="v$(cat VERSION)"
+          if [ "$expected" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match the VERSION file ($expected)"
+            exit 1
+          fi
+
+      - name: Build, test and package for the handheld (arm64, Debian trixie)
+        run: |
+          docker run --rm -v "$PWD:/src" -w /src debian:trixie bash -euo pipefail -c '
+            apt-get update -qq
+            apt-get install -y -qq --no-install-recommends build-essential libsdl2-dev libasound2-dev zip file >/dev/null
+            make EXTRA_CFLAGS=-Werror
+            make test
+            tools/package.sh
+            file ember
+          '
+
+      - name: Write release notes from CHANGELOG.md
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          awk -v v="$version" '/^## \[/ { p = index($0, "[" v "]") > 0; next } /^\[[0-9.]+\]: / { next } p' CHANGELOG.md > notes.md
+          if ! grep -q '[^[:space:]]' notes.md; then
+            echo "::error::CHANGELOG.md has no section for $version"
+            exit 1
+          fi
+          cat >> notes.md <<NOTES
+
+          ### Install or update
+
+          **Over Wi-Fi**, from an SSH session on the handheld:
+
+          \`\`\`sh
+          cd /roms/ports && curl -L https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/ember-arkos-arm64.tar.gz | tar xz --no-same-owner
+          \`\`\`
+
+          **Or with the SD card**: unzip \`ember-arkos-arm64.zip\` into the \`ports\` folder.
+
+          Then restart EmulationStation and open **Ember** from Ports. Updating keeps your settings, presets and recordings.
+          Built for ArkOS4Clone / dArkOS (Debian trixie, arm64), tested on the R36Max.
+          NOTES
+          cat notes.md
+
+      - name: Publish the release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Ember ${{ github.ref_name }}
+          body_path: notes.md
+          files: |
+            dist/ember-arkos-arm64.zip
+            dist/ember-arkos-arm64.tar.gz
+            dist/SHA256SUMS.txt
+          fail_on_unmatched_files: true

@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build and test (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64      # the handheld
+            runner: ubuntu-24.04-arm
+          - arch: x86_64     # desktop testing
+            runner: ubuntu-24.04
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Debian trixie is the base of ArkOS4Clone, so the binary links against
+      # the same glibc, SDL2 and ALSA versions the handheld has.
+      - name: Build, test and package in Debian trixie
+        run: |
+          docker run --rm -v "$PWD:/src" -w /src debian:trixie bash -euo pipefail -c '
+            apt-get update -qq
+            apt-get install -y -qq --no-install-recommends build-essential libsdl2-dev libasound2-dev zip >/dev/null
+            make EXTRA_CFLAGS=-Werror
+            make test
+            ./ember --screenshot screenshot.bmp 0
+            tools/package.sh
+          '
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ember-${{ matrix.arch }}
+          path: |
+            dist/
+            screenshot.bmp
+          if-no-files-found: error
+          retention-days: 14

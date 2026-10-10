@@ -11,3 +11,4 @@ user_presets.cfg
 recordings/
 *.log
 *.wav
+dist/

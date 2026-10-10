@@ -67,5 +67,8 @@ int main(int argc, char **argv) {
         printf("segment %d (%2d-%2ds): rms %5.1f dBFS  peak %.2f\n", i, i * 4, i * 4 + 4,
                20 * log10(sqrt(sumsq[i] / (cnt[i] ? cnt[i] : 1)) + 1e-9), pk[i]);
     printf("NaNs: %d\nrendered 36 s in %.2f s  (%.1fx realtime)\n", nans, t1 - t0, 36.0 / (t1 - t0));
-    return 0;
+    int fail = nans > 0;
+    for (int i = 0; i < 8; i++) if (pk[i] < 0.05f || pk[i] > 0.99f) { printf("FAIL: segment %d level out of range\n", i); fail = 1; }
+    printf("%s\n", fail ? "render: FAIL" : "render: ok");
+    return fail;
 }

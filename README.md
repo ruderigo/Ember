@@ -1,4 +1,8 @@
-# Ember v0.3
+# Ember
+
+[![CI](https://github.com/ruderigo/ember/actions/workflows/ci.yml/badge.svg)](https://github.com/ruderigo/ember/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/ruderigo/ember)](https://github.com/ruderigo/ember/releases/latest)
+[![License: MIT](https://img.shields.io/badge/license-MIT-orange)](LICENSE)
 
 Warm analog pads and a vocoder for the R36Max (ArkOS4Clone). Plays from the
 handheld's buttons or a USB MIDI keyboard, vocodes a USB mic or a built-in
@@ -8,22 +12,27 @@ vowel voice, and loops and records what you play.
 
 ## Install or update
 
-The handheld builds Ember itself (gcc, SDL2 and ALSA headers are already on
-ArkOS4Clone). Ember.sh goes in `/roms/ports/`, everything else in
-`/roms/ports/ember/`. From a computer on the same network:
+Grab the latest package from
+[Releases](https://github.com/ruderigo/ember/releases/latest). It includes a
+prebuilt binary for ArkOS4Clone / dArkOS (Debian trixie, arm64).
+
+**Over Wi-Fi**, from an SSH session on the handheld:
 
 ```sh
-git clone <this repo> ember
-scp -r ember/src ember/tools ember/Makefile ember/README.md ark@r36max.local:/roms/ports/ember/
-scp ember/Ember.sh ark@r36max.local:/roms/ports/
-ssh ark@r36max.local 'cd /roms/ports/ember && make'
+cd /roms/ports && curl -L https://github.com/ruderigo/ember/releases/latest/download/ember-arkos-arm64.tar.gz | tar xz --no-same-owner
 ```
 
-Updating keeps your settings and recordings.
-Then restart EmulationStation (or reboot) and launch **Ember** from Ports.
-If the build step is skipped, the launcher compiles it on first launch.
+**With the SD card**: unzip `ember-arkos-arm64.zip` into the `ports` folder.
 
-First test over SSH (frees the screen and audio from EmulationStation):
+**From source**: copy `Ember.sh` to `/roms/ports/` and the rest of this repo
+to `/roms/ports/ember/`, then run `make` there. The handheld already has
+gcc and the SDL2 and ALSA headers.
+
+Then restart EmulationStation (or reboot) and launch **Ember** from Ports.
+Updating keeps your settings, presets and recordings.
+
+To see error messages on a first run, start it over SSH instead (this frees
+the screen and audio from EmulationStation):
 
 ```sh
 sudo systemctl stop emulationstation
@@ -150,6 +159,17 @@ in `user_presets.cfg`; edit a slot's `name=` line over SSH to rename it.
   `EMBER_MIC` (force a capture device, e.g. `plughw:1,0`).
 - **Mic and keyboard together**: use a powered USB hub. The handheld's port
   may not supply enough power for both.
+
+## Development
+
+- `make` builds, `make test` runs the engine, looper and recorder tests,
+  `make package` builds the release packages into `dist/`.
+- CI builds and tests every push on arm64 and x86_64 in Debian trixie, the
+  same base as ArkOS4Clone, and uploads the packages as artifacts.
+- To release: update `VERSION` and `CHANGELOG.md`, commit, then tag
+  `v` + version (`git tag -a v0.3.0 -m "Ember 0.3.0" && git push --tags`).
+  The release workflow checks the tag matches `VERSION`, builds and tests
+  on arm64, and publishes the packages with notes from the changelog.
 
 ## Credits
 

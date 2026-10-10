@@ -3,7 +3,10 @@
 #include <math.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <string.h>
+#include <stdlib.h>
 int main(void) {
+    if (system("rm -rf recordings")) {}
     float L[256], R[256], ph = 0;
     rec_init();
     rec_start();
@@ -18,6 +21,16 @@ int main(void) {
     rec_save_loop(lp, rp, 48000);
     usleep(300000);
     rec_shutdown();
-    unsigned seq; printf("last message: %s\n", rec_message(&seq));
-    return 0;
+    unsigned seq; const char *m = rec_message(&seq);
+    printf("last message: %s\n", m);
+    /* both files must exist with the right length */
+    int ok = 1;
+    FILE *p = popen("for f in recordings/ember-*.wav recordings/loop-*.wav; do stat -c %s \"$f\"; done", "r");
+    long sizes[2] = {0, 0}; for (int i = 0; i < 2 && p; i++) if (fscanf(p, "%ld", &sizes[i]) != 1) ok = 0;
+    if (p) pclose(p);
+    if (sizes[0] < 44 + 48000 * 4 * 19 / 10) ok = 0;      /* ~2 s session (allow scheduling slack) */
+    if (sizes[1] != 44 + 48000 * 4) ok = 0;               /* exactly 1 s loop */
+    if (strncmp(m, "Saved loop", 10)) ok = 0;
+    printf("rectest: %s (session %ld bytes, loop %ld bytes)\n", ok ? "ok" : "FAIL", sizes[0], sizes[1]);
+    return !ok;
 }

@@ -7,7 +7,8 @@
 
 static void ev(int type, int note) { Event e = { (uint8_t)type, (uint8_t)note, 100, 0 }; evq_push(&q_ui, e); }
 static float L[256], R[256];
-static FILE *wav; static int frames;
+static FILE *wav; static int frames, fails;
+static void check(int ok, const char *what) { if (!ok) { printf("FAIL: %s\n", what); fails++; } }
 static double run(double seconds) {              /* returns RMS of the rendered span */
     double sum = 0; int n = (int)(seconds * 48000 / 256);
     for (int b = 0; b < n; b++) {
@@ -60,6 +61,11 @@ int main(void) {
     ev(EV_LOOP_CLEAR, 0);
     double cleared = run(2.0);
     printf("after clear: state %d rms %.5f\n", M.loop_state, cleared);
+    check(play > 0.02, "loop plays back");
+    check(dubbed > play * 1.1, "overdub adds a layer");
+    check(fabs(undone - play) < play * 0.03, "undo restores the first take");
+    check(fabs(redone - dubbed) < dubbed * 0.03, "redo restores the overdub");
+    check(M.loop_state == LOOP_EMPTY && cleared < 0.01, "clear empties the loop");
 
     /* header */
     int bytes = frames * 4, v; short sh;
@@ -69,5 +75,6 @@ int main(void) {
     v = 48000; fwrite(&v, 4, 1, wav); v = 192000; fwrite(&v, 4, 1, wav); sh = 4; fwrite(&sh, 2, 1, wav);
     sh = 16; fwrite(&sh, 2, 1, wav); fwrite("data", 1, 4, wav); fwrite(&bytes, 4, 1, wav);
     fclose(wav);
-    return 0;
+    printf("%s\n", fails ? "looptest: FAIL" : "looptest: ok");
+    return fails != 0;
 }

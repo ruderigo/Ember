@@ -12,7 +12,10 @@
 
 #define W 720
 #define H 720
-#define VERSION "0.3"
+#ifndef EMBER_VERSION
+#define EMBER_VERSION "dev"      /* the Makefile passes the contents of VERSION */
+#endif
+#define VERSION EMBER_VERSION
 
 /* ------------------------------------------------------------- palette */
 typedef struct { Uint8 r, g, b; } Col;
