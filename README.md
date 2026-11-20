@@ -173,6 +173,9 @@ in `user_presets.cfg`; edit a slot's `name=` line over SSH to rename it.
   empty with "muted?", its capture is off in the device's own mixer: run
   `alsamixer -c N` (N from that line), press F4 for capture, and raise or
   unmute the mic (space toggles capture).
+- **Mic log**: `ember/ember.log` notes what the mic did (opened, refused
+  and why, hears sound, only silence, unplugged), to read later with
+  `ssh ark@r36max.local cat /roms/ports/ember/ember.log`.
 - **Mic and keyboard together**: use a powered USB hub. The handheld's port
   may not supply enough power for both.
 

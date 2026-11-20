@@ -15,6 +15,11 @@ and must match the release tag (`v` + version).
   "none" / "not connected".
 
 ### Added
+- What the mic does goes to `ember/ember.log`, one line per change: the
+  device it opened (and whether it took the longer buffer), why it won't
+  open, when it hears sound, when it reads only silence, when it's
+  unplugged. For when the headset takes the USB port the Wi-Fi was in:
+  use Ember, plug the Wi-Fi back, then read the log over ssh.
 - The INFO page shows the mic's level (`[######....]`), and after three
   seconds of exact silence, "muted? alsamixer -c N": a USB mic whose
   capture is switched off in its own mixer is connected but hears nothing.
