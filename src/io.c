@@ -3,7 +3,10 @@
  *  - mic thread:    finds a USB capture device by driver, survives hot-plug
  *  - MIDI thread:   ALSA sequencer client that auto-connects every hardware
  *                   MIDI port, including ones plugged in later
- * Environment overrides: EMBER_OUT (default plughw:0,0), EMBER_MIC, EMBER_PERIOD.
+ * The output follows a USB sound device (headphones, a DAC, a USB-C adapter)
+ * when one is plugged in, and goes back to the built-in card when it is not.
+ * Environment overrides: EMBER_OUT (a fixed output, e.g. plughw:0,0), EMBER_MIC,
+ * EMBER_PERIOD.
  */
 #define _GNU_SOURCE
 #include "io.h"
@@ -19,7 +22,8 @@
 
 volatile IoStatus IO;
 volatile int io_quit;
-static pthread_t th_out, th_mic, th_midi;
+static pthread_t th_out, th_mic, th_midi, th_watch;
+static int watch_started;
 
 static void msleep(int ms) { struct timespec t = { ms / 1000, (ms % 1000) * 1000000L }; nanosleep(&t, NULL); }
 static double now_s(void) { struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); return t.tv_sec + t.tv_nsec * 1e-9; }
@@ -30,11 +34,82 @@ static void try_realtime(int prio) {
     pthread_setschedparam(pthread_self(), SCHED_FIFO, &sp);   /* fine if refused */
 }
 
+/* ------------------------------------------------------- USB sound devices */
+
+/* First USB-Audio card that has a PCM for this direction. A MIDI keyboard is
+ * also a USB-Audio card but has no PCM, so it is skipped automatically. */
+static int find_usb_pcm(snd_pcm_stream_t stream, char *pcmname, size_t pn, char *label, size_t ln) {
+    int card = -1;
+    while (snd_card_next(&card) == 0 && card >= 0) {
+        char hw[16]; snprintf(hw, sizeof hw, "hw:%d", card);
+        snd_ctl_t *ctl;
+        if (snd_ctl_open(&ctl, hw, 0) < 0) continue;
+        snd_ctl_card_info_t *info; snd_ctl_card_info_alloca(&info);
+        if (snd_ctl_card_info(ctl, info) == 0 && strcmp(snd_ctl_card_info_get_driver(info), "USB-Audio") == 0) {
+            int dev = -1;
+            while (snd_ctl_pcm_next_device(ctl, &dev) == 0 && dev >= 0) {
+                snd_pcm_info_t *pi; snd_pcm_info_alloca(&pi);
+                snd_pcm_info_set_device(pi, dev);
+                snd_pcm_info_set_subdevice(pi, 0);
+                snd_pcm_info_set_stream(pi, stream);
+                if (snd_ctl_pcm_info(ctl, pi) >= 0) {
+                    snprintf(pcmname, pn, "plughw:%d,%d", card, dev);
+                    snprintf(label, ln, "%s", snd_ctl_card_info_get_name(info));
+                    snd_ctl_close(ctl);
+                    return 1;
+                }
+            }
+        }
+        snd_ctl_close(ctl);
+    }
+    return 0;
+}
+
 /* --------------------------------------------------------------- output */
+
+#define OUT_BUILTIN "plughw:0,0"
+
+static pthread_mutex_t out_lock = PTHREAD_MUTEX_INITIALIZER;
+static char out_cur[64];            /* the device the output thread has open */
+static volatile int out_switch;     /* set by the watcher: reopen on the device to use now */
+
+/* The output to use now: EMBER_OUT when set, else a USB sound device when one
+ * is plugged in, else the built-in card. `label` is what the INFO page shows. */
+static void pick_output(char *dev, size_t dn, char *label, size_t ln) {
+    char name[64];
+    const char *forced = getenv("EMBER_OUT");
+    if (forced && forced[0]) {
+        snprintf(dev, dn, "%s", forced);
+        snprintf(label, ln, "%s", forced);
+    } else if (find_usb_pcm(SND_PCM_STREAM_PLAYBACK, dev, dn, name, sizeof name)) {
+        snprintf(label, ln, "%s  %s", dev, name);
+    } else {
+        snprintf(dev, dn, "%s", OUT_BUILTIN);
+        snprintf(label, ln, "%s", OUT_BUILTIN);
+    }
+}
+
+/* Notices a USB sound device being plugged in (or a better choice appearing)
+ * while the output is running, and asks the output thread to move to it.
+ * Unplugging needs no watcher: the write fails and the output thread reopens. */
+static void *watch_thread(void *arg) {
+    (void)arg;
+    while (!io_quit) {
+        for (int i = 0; i < 15 && !io_quit; i++) msleep(100);
+        if (io_quit || !IO.out_ok) continue;
+        char want[64], label[96], cur[64];
+        pick_output(want, sizeof want, label, sizeof label);
+        pthread_mutex_lock(&out_lock);
+        snprintf(cur, sizeof cur, "%s", out_cur);
+        pthread_mutex_unlock(&out_lock);
+        if (cur[0] && strcmp(want, cur) != 0) out_switch = 1;
+    }
+    return NULL;
+}
 
 static void *out_thread(void *arg) {
     (void)arg;
-    const char *dev = getenv("EMBER_OUT") ? getenv("EMBER_OUT") : "plughw:0,0";
+    char dev[64], label[96];
     int want = getenv("EMBER_PERIOD") ? atoi(getenv("EMBER_PERIOD")) : 256;
     if (want < 64 || want > 2048) want = 256;
     try_realtime(70);
@@ -43,6 +118,7 @@ static void *out_thread(void *arg) {
 
     while (!io_quit) {
         snd_pcm_t *pcm;
+        pick_output(dev, sizeof dev, label, sizeof label);
         int err = snd_pcm_open(&pcm, dev, SND_PCM_STREAM_PLAYBACK, 0);
         if (err < 0) {
             char m[96];
@@ -54,6 +130,9 @@ static void *out_thread(void *arg) {
         }
         err = snd_pcm_set_params(pcm, SND_PCM_FORMAT_S16_LE, SND_PCM_ACCESS_RW_INTERLEAVED,
                                  2, 48000, 1, (unsigned)(want * 3 * 1000000.0 / 48000));
+        if (err < 0)    /* some USB devices refuse a buffer this short: take a longer one */
+            err = snd_pcm_set_params(pcm, SND_PCM_FORMAT_S16_LE, SND_PCM_ACCESS_RW_INTERLEAVED,
+                                     2, 48000, 1, 60000);
         if (err < 0) {
             char m[96]; snprintf(m, sizeof m, "%s setup failed: %s", dev, snd_strerror(err));
             set_str(IO.out_name, sizeof IO.out_name, m);
@@ -63,11 +142,15 @@ static void *out_thread(void *arg) {
         snd_pcm_get_params(pcm, &bufsz, &per);
         if (per > 2048) per = 2048;
         IO.period = (int)per; IO.rate = 48000;
-        set_str(IO.out_name, sizeof IO.out_name, dev);
+        set_str(IO.out_name, sizeof IO.out_name, label);
+        pthread_mutex_lock(&out_lock);
+        snprintf(out_cur, sizeof out_cur, "%s", dev);
+        pthread_mutex_unlock(&out_lock);
+        out_switch = 0;
         IO.out_ok = 1;
 
         double load = 0.0;
-        while (!io_quit) {
+        while (!io_quit && !out_switch) {
             double t0 = now_s();
             engine_render(L, R, (int)per);
             double dt = now_s() - t0;
@@ -87,6 +170,9 @@ static void *out_thread(void *arg) {
             }
         }
         IO.out_ok = 0;
+        pthread_mutex_lock(&out_lock);
+        out_cur[0] = 0;
+        pthread_mutex_unlock(&out_lock);
         snd_pcm_drop(pcm);
         snd_pcm_close(pcm);
     }
@@ -94,35 +180,6 @@ static void *out_thread(void *arg) {
 }
 
 /* ------------------------------------------------------------------ mic */
-
-/* First USB-Audio card that has a capture device. The MIDI keyboard is also
- * a USB-Audio card but has no capture PCM, so it is skipped automatically. */
-static int find_usb_mic(char *pcmname, size_t pn, char *label, size_t ln) {
-    int card = -1;
-    while (snd_card_next(&card) == 0 && card >= 0) {
-        char hw[16]; snprintf(hw, sizeof hw, "hw:%d", card);
-        snd_ctl_t *ctl;
-        if (snd_ctl_open(&ctl, hw, 0) < 0) continue;
-        snd_ctl_card_info_t *info; snd_ctl_card_info_alloca(&info);
-        if (snd_ctl_card_info(ctl, info) == 0 && strcmp(snd_ctl_card_info_get_driver(info), "USB-Audio") == 0) {
-            int dev = -1;
-            while (snd_ctl_pcm_next_device(ctl, &dev) == 0 && dev >= 0) {
-                snd_pcm_info_t *pi; snd_pcm_info_alloca(&pi);
-                snd_pcm_info_set_device(pi, dev);
-                snd_pcm_info_set_subdevice(pi, 0);
-                snd_pcm_info_set_stream(pi, SND_PCM_STREAM_CAPTURE);
-                if (snd_ctl_pcm_info(ctl, pi) >= 0) {
-                    snprintf(pcmname, pn, "plughw:%d,%d", card, dev);
-                    snprintf(label, ln, "%s", snd_ctl_card_info_get_name(info));
-                    snd_ctl_close(ctl);
-                    return 1;
-                }
-            }
-        }
-        snd_ctl_close(ctl);
-    }
-    return 0;
-}
 
 static void *mic_thread(void *arg) {
     (void)arg;
@@ -132,7 +189,7 @@ static void *mic_thread(void *arg) {
     while (!io_quit) {
         char dev[64], label[96];
         if (getenv("EMBER_MIC")) { snprintf(dev, sizeof dev, "%s", getenv("EMBER_MIC")); snprintf(label, sizeof label, "%s", dev); }
-        else if (!find_usb_mic(dev, sizeof dev, label, sizeof label)) { IO.mic_name[0] = 0; msleep(1500); continue; }
+        else if (!find_usb_pcm(SND_PCM_STREAM_CAPTURE, dev, sizeof dev, label, sizeof label)) { IO.mic_name[0] = 0; msleep(1500); continue; }
 
         snd_pcm_t *pcm;
         if (snd_pcm_open(&pcm, dev, SND_PCM_STREAM_CAPTURE, 0) < 0) { msleep(1500); continue; }
@@ -263,6 +320,9 @@ int io_start(void) {
     if (pthread_create(&th_out, NULL, out_thread, NULL)) return -1;
     pthread_create(&th_mic, NULL, mic_thread, NULL);
     pthread_create(&th_midi, NULL, midi_thread, NULL);
+    /* a fixed EMBER_OUT never moves, so it needs no watcher */
+    if (!(getenv("EMBER_OUT") && getenv("EMBER_OUT")[0]))
+        watch_started = pthread_create(&th_watch, NULL, watch_thread, NULL) == 0;
     return 0;
 }
 
@@ -271,4 +331,5 @@ void io_stop(void) {
     pthread_join(th_out, NULL);
     pthread_join(th_mic, NULL);
     pthread_join(th_midi, NULL);
+    if (watch_started) pthread_join(th_watch, NULL);
 }

@@ -162,7 +162,12 @@ in `user_presets.cfg`; edit a slot's `name=` line over SSH to rename it.
   retrying, so quitting the other app is enough.
 - **Crackles**: run with a bigger buffer, e.g. edit Ember.sh to
   `EMBER_PERIOD=512 ./ember`. The INFO page counts dropouts (xruns).
-- **Other overrides**: `EMBER_OUT` (output device, default `plughw:0,0`) and
+- **No sound, but OUT is green**: the INFO page shows where the sound is
+  going. Ember uses a USB sound device (USB headphones, a USB-C audio
+  adapter, a DAC) when one is plugged in, and the built-in sound otherwise.
+  A USB mic that also has a headphone output counts as a USB sound device.
+- **Other overrides**: `EMBER_OUT` (a fixed output device, e.g. `plughw:0,0`
+  for the built-in sound; Ember then stops following USB devices) and
   `EMBER_MIC` (force a capture device, e.g. `plughw:1,0`).
 - **Mic and keyboard together**: use a powered USB hub. The handheld's port
   may not supply enough power for both.

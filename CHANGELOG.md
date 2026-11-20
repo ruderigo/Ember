@@ -3,6 +3,24 @@
 All notable changes to Ember. The version in `VERSION` is shown on screen
 and must match the release tag (`v` + version).
 
+## [0.4.0] - 2026-11-19
+
+### Added
+- Sound follows a USB sound device. With USB headphones, a USB-C audio
+  adapter or a USB DAC plugged in, Ember plays through it, and it moves
+  there or back to the built-in sound within a couple of seconds when the
+  device is plugged in or unplugged while Ember is running. The INFO page
+  shows the output in use and the device's name.
+
+### Changed
+- `EMBER_OUT` now means a fixed output: when it is set, Ember stays on that
+  device and does not follow USB devices. Use `EMBER_OUT=plughw:0,0` to keep
+  the built-in sound even with a USB sound device plugged in.
+
+### Fixed
+- No sound on a handheld whose speaker is not working while games played
+  fine through USB headphones: Ember always used the built-in sound card.
+
 ## [0.3.0] - 2026-10-10
 
 ### Added
@@ -48,6 +66,7 @@ and must match the release tag (`v` + version).
 - 720x720 screen with pages for play, tone, voice, space and device info.
 - 6 factory presets, settings saved automatically.
 
+[0.4.0]: https://github.com/ruderigo/Ember/releases/tag/v0.4.0
 [0.3.0]: https://github.com/ruderigo/Ember/releases/tag/v0.3.0
 [0.2.1]: https://github.com/ruderigo/Ember/commits/main
 [0.2.0]: https://github.com/ruderigo/Ember/commits/main
