@@ -185,7 +185,7 @@ static void *out_thread(void *arg) {
  * later over ssh when the headset took the USB port the Wi-Fi was in.
  * Each line once, not again until something changes. */
 static void mic_log(const char *line) {
-    static char last[160];
+    static char last[256];
     if (strcmp(line, last) == 0) return;
     snprintf(last, sizeof last, "%s", line);
     time_t t = time(NULL); struct tm tm; localtime_r(&t, &tm);
@@ -212,7 +212,7 @@ static void *mic_thread(void *arg) {
         if (err < 0) {
             char m[96]; snprintf(m, sizeof m, "%s won't open: %s", dev, snd_strerror(err));
             set_str(IO.mic_why, sizeof IO.mic_why, m);
-            char l[160]; snprintf(l, sizeof l, "%s (%s)", m, label); mic_log(l);
+            char l[256]; snprintf(l, sizeof l, "%s (%s)", m, label); mic_log(l);
             msleep(1500); continue;
         }
         int longer = 0;
@@ -224,11 +224,11 @@ static void *mic_thread(void *arg) {
         if (err < 0) {
             char m[96]; snprintf(m, sizeof m, "%s setup failed: %s", dev, snd_strerror(err));
             set_str(IO.mic_why, sizeof IO.mic_why, m);
-            char l[160]; snprintf(l, sizeof l, "%s (%s)", m, label); mic_log(l);
+            char l[256]; snprintf(l, sizeof l, "%s (%s)", m, label); mic_log(l);
             snd_pcm_close(pcm); msleep(1500); continue;
         }
         {
-            char l[160]; snprintf(l, sizeof l, "%s open: %s%s", dev, label, longer ? " (took the longer buffer)" : "");
+            char l[256]; snprintf(l, sizeof l, "%s open: %s%s", dev, label, longer ? " (took the longer buffer)" : "");
             mic_log(l);
         }
         IO.mic_why[0] = 0;
