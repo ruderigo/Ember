@@ -169,6 +169,10 @@ in `user_presets.cfg`; edit a slot's `name=` line over SSH to rename it.
 - **Other overrides**: `EMBER_OUT` (a fixed output device, e.g. `plughw:0,0`
   for the built-in sound; Ember then stops following USB devices) and
   `EMBER_MIC` (force a capture device, e.g. `plughw:1,0`).
+- **Mic connected but silent**: the INFO page shows its level. If it stays
+  empty with "muted?", its capture is off in the device's own mixer: run
+  `alsamixer -c N` (N from that line), press F4 for capture, and raise or
+  unmute the mic (space toggles capture).
 - **Mic and keyboard together**: use a powered USB hub. The handheld's port
   may not supply enough power for both.
 

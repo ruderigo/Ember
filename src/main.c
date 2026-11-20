@@ -699,7 +699,8 @@ static void draw(void) {
         text(&font_small, 35, 330, buf, C_ERR, 0, 0);
     } else {
         int mic = P.vocsrc < 0.5f;
-        if (mic) snprintf(buf, sizeof buf, "MIC  %s", IO.mic_name[0] ? IO.mic_name : "not connected");
+        if (mic) snprintf(buf, sizeof buf, "MIC  %s", IO.mic_name[0] ? IO.mic_name :
+                          IO.mic_why[0] ? (const char *)IO.mic_why : "not connected");
         else snprintf(buf, sizeof buf, "VOWEL VOICE  %c", "AEIOU"[(int)lroundf(fminf(fmaxf(P.vowel + P.vowel_mod, 0.f), 1.f) * 4)]);
         text(&font_small, 35, 330, buf, mic && !IO.mic_name[0] ? C_ERR : C_DIM, 0, 0);
         snprintf(buf, sizeof buf, "VOCODER %d%%", (int)lroundf(vm * 100));
@@ -747,7 +748,19 @@ static void draw(void) {
         snprintf(l[n], 128, "Output   %s", IO.out_name); n++;
         snprintf(l[n], 128, "Latency  %d frames x3 @ %d Hz  (%.0f ms)  xruns %d", IO.period, IO.rate ? IO.rate : 48000,
                  IO.period * 3 * 1000.0 / 48000.0, IO.xruns); n++;
-        snprintf(l[n], 128, "Mic      %s", IO.mic_name[0] ? IO.mic_name : "none (plug a USB mic)"); n++;
+        if (IO.mic_name[0]) {
+            /* Its level, so a mic that's connected but hears nothing shows. */
+            char bar[11]; int lv = IO.mic_level / 10;
+            for (int i = 0; i < 10; i++) bar[i] = i < lv ? '#' : '.';
+            bar[10] = 0;
+            int card = -1; sscanf((const char *)IO.mic_dev, "plughw:%d", &card);
+            if (IO.mic_silent_ms > 3000 && card >= 0)
+                snprintf(l[n], 128, "Mic      %.14s [%s] muted? alsamixer -c %d", IO.mic_name, bar, card);
+            else
+                snprintf(l[n], 128, "Mic      %.60s [%s]", IO.mic_name, bar);
+        } else
+            snprintf(l[n], 128, "Mic      %s", IO.mic_why[0] ? (const char *)IO.mic_why : "none (plug a USB mic)");
+        n++;
         snprintf(l[n], 128, "MIDI     %s", IO.midi_name[0] ? IO.midi_name : "none (plug a USB keyboard)"); n++;
         if (IO.midi_last_cc >= 0 && IO.midi_name[0]) snprintf(l[n], 128, "Last CC  #%d = %d", IO.midi_last_cc, IO.midi_last_val);
         else snprintf(l[n], 128, "Last CC  -");
@@ -806,6 +819,9 @@ int main(int argc, char **argv) {
         U.hold = 1; P.vocmix = 0.85f; P.vocsrc = 0;
         snprintf((char *)IO.out_name, sizeof IO.out_name, "plughw:0,0");
         snprintf((char *)IO.mic_name, sizeof IO.mic_name, "USB Composite Device");
+        snprintf((char *)IO.mic_dev, sizeof IO.mic_dev, "plughw:1,0");
+        IO.mic_level = getenv("EMBER_SHOT_MUTED") ? 0 : 62;
+        IO.mic_silent_ms = getenv("EMBER_SHOT_MUTED") ? 5000 : 0;
         snprintf((char *)IO.midi_name, sizeof IO.midi_name, "Impact LX61+");
         IO.out_ok = 1; IO.period = 256; IO.rate = 48000; M.cpu = 0.23f; M.out_peak = 0.62f;
         M.voices_active = 5;
