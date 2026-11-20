@@ -181,6 +181,18 @@ static void *out_thread(void *arg) {
 
 /* ------------------------------------------------------------------ mic */
 
+/* What the mic does, in ember.log (Ember.sh sends its output there): read
+ * later over ssh when the headset took the USB port the Wi-Fi was in.
+ * Each line once, not again until something changes. */
+static void mic_log(const char *line) {
+    static char last[256];
+    if (strcmp(line, last) == 0) return;
+    snprintf(last, sizeof last, "%s", line);
+    time_t t = time(NULL); struct tm tm; localtime_r(&t, &tm);
+    fprintf(stderr, "%02d:%02d:%02d mic: %s\n", tm.tm_hour, tm.tm_min, tm.tm_sec, line);
+    fflush(stderr);
+}
+
 static void *mic_thread(void *arg) {
     (void)arg;
     try_realtime(60);
@@ -189,26 +201,75 @@ static void *mic_thread(void *arg) {
     while (!io_quit) {
         char dev[64], label[96];
         if (getenv("EMBER_MIC")) { snprintf(dev, sizeof dev, "%s", getenv("EMBER_MIC")); snprintf(label, sizeof label, "%s", dev); }
-        else if (!find_usb_pcm(SND_PCM_STREAM_CAPTURE, dev, sizeof dev, label, sizeof label)) { IO.mic_name[0] = 0; msleep(1500); continue; }
+        else if (!find_usb_pcm(SND_PCM_STREAM_CAPTURE, dev, sizeof dev, label, sizeof label)) {
+            IO.mic_name[0] = 0; IO.mic_why[0] = 0;
+            mic_log("no USB capture device (plug a USB mic or headset)");
+            msleep(1500); continue;
+        }
 
         snd_pcm_t *pcm;
-        if (snd_pcm_open(&pcm, dev, SND_PCM_STREAM_CAPTURE, 0) < 0) { msleep(1500); continue; }
-        if (snd_pcm_set_params(pcm, SND_PCM_FORMAT_S16_LE, SND_PCM_ACCESS_RW_INTERLEAVED,
-                               1, 48000, 1, 16000) < 0) {
+        int err = snd_pcm_open(&pcm, dev, SND_PCM_STREAM_CAPTURE, 0);
+        if (err < 0) {
+            char m[96]; snprintf(m, sizeof m, "%s won't open: %s", dev, snd_strerror(err));
+            set_str(IO.mic_why, sizeof IO.mic_why, m);
+            char l[256]; snprintf(l, sizeof l, "%s (%s)", m, label); mic_log(l);
+            msleep(1500); continue;
+        }
+        int longer = 0;
+        err = snd_pcm_set_params(pcm, SND_PCM_FORMAT_S16_LE, SND_PCM_ACCESS_RW_INTERLEAVED, 1, 48000, 1, 16000);
+        if (err < 0) {  /* some USB mics refuse a buffer this short (as outputs do): take a longer one */
+            longer = 1;
+            err = snd_pcm_set_params(pcm, SND_PCM_FORMAT_S16_LE, SND_PCM_ACCESS_RW_INTERLEAVED, 1, 48000, 1, 60000);
+        }
+        if (err < 0) {
+            char m[96]; snprintf(m, sizeof m, "%s setup failed: %s", dev, snd_strerror(err));
+            set_str(IO.mic_why, sizeof IO.mic_why, m);
+            char l[256]; snprintf(l, sizeof l, "%s (%s)", m, label); mic_log(l);
             snd_pcm_close(pcm); msleep(1500); continue;
         }
+        {
+            char l[256]; snprintf(l, sizeof l, "%s open: %s%s", dev, label, longer ? " (took the longer buffer)" : "");
+            mic_log(l);
+        }
+        IO.mic_why[0] = 0;
+        set_str(IO.mic_dev, sizeof IO.mic_dev, dev);
         set_str(IO.mic_name, sizeof IO.mic_name, label);
-        int connected = 0;
+        int connected = 0, level = 0;
+        IO.mic_silent_ms = 0;
         while (!io_quit) {
             snd_pcm_sframes_t r = snd_pcm_readi(pcm, in, 256);
             if (r == -EPIPE || r == -ESTRPIPE || r == -EINTR) { snd_pcm_recover(pcm, (int)r, 1); continue; }
             if (r < 0) break;                               /* unplugged */
-            for (int i = 0; i < r; i++) f[i] = in[i] * (1.f / 32768.f);
+            int peak = 0;
+            for (int i = 0; i < r; i++) {
+                f[i] = in[i] * (1.f / 32768.f);
+                int a = in[i] < 0 ? -in[i] : in[i];
+                if (a > peak) peak = a;
+            }
             mic_push(f, (int)r);
             if (!connected) { mic_set_connected(1); connected = 1; }
+            /* Its level for the INFO page, and how long it has heard nothing at all:
+             * a mic whose capture is muted in the device's mixer reads exact zeros. */
+            int pct = peak * 100 / 32768;
+            level = pct > level ? pct : level - (level + 31) / 32;
+            if (level < 0) level = 0;
+            IO.mic_level = level;
+            IO.mic_silent_ms = peak <= 2 ? IO.mic_silent_ms + (long)r * 1000 / 48000 : 0;
+            if (IO.mic_silent_ms > 3000) {
+                int card = -1; sscanf(dev, "plughw:%d", &card);
+                char l[160]; snprintf(l, sizeof l, "%s reads only silence: its capture may be muted (alsamixer -c %d)",
+                                      dev, card);
+                mic_log(l);
+            } else if (pct > 3) {
+                char l[160]; snprintf(l, sizeof l, "%s hears sound", dev); mic_log(l);
+            }
         }
         mic_set_connected(0);
         IO.mic_name[0] = 0;
+        IO.mic_level = 0;
+        {
+            char l[160]; snprintf(l, sizeof l, "%s gone (unplugged)", dev); mic_log(l);
+        }
         snd_pcm_close(pcm);
         msleep(800);
     }

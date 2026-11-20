@@ -3,6 +3,27 @@
 All notable changes to Ember. The version in `VERSION` is shown on screen
 and must match the release tag (`v` + version).
 
+## [0.4.1] - 2026-11-20
+
+### Fixed
+- A USB mic that refuses Ember's short capture buffer now works: Ember
+  takes a longer one, as it already did for USB outputs. Before, such a
+  mic (some USB-C headset adapters) was retried forever and never heard,
+  with nothing on screen to say why.
+- When a mic is found but won't open or set up, the INFO page and the
+  main screen's MIC line say why (the device and ALSA's error) instead of
+  "none" / "not connected".
+
+### Added
+- What the mic does goes to `ember/ember.log`, one line per change: the
+  device it opened (and whether it took the longer buffer), why it won't
+  open, when it hears sound, when it reads only silence, when it's
+  unplugged. For when the headset takes the USB port the Wi-Fi was in:
+  use Ember, plug the Wi-Fi back, then read the log over ssh.
+- The INFO page shows the mic's level (`[######....]`), and after three
+  seconds of exact silence, "muted? alsamixer -c N": a USB mic whose
+  capture is switched off in its own mixer is connected but hears nothing.
+
 ## [0.4.0] - 2026-11-19
 
 ### Added
