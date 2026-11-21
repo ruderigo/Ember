@@ -83,4 +83,5 @@ int loop_snapshot(float **L, float **R);
 /* USB mic path: capture thread pushes, audio thread pulls with drift correction */
 void mic_push(const float *x, int n);
 void mic_set_connected(int on);
+void mic_set_period(int frames);   /* the mic's period: how much is kept queued */
 extern _Atomic int mic_connected;

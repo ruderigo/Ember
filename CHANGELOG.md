@@ -3,6 +3,24 @@
 All notable changes to Ember. The version in `VERSION` is shown on screen
 and must match the release tag (`v` + version).
 
+## [0.4.3] - 2026-11-21
+
+### Fixed
+- **A USB-C headset's mic is heard on the R36MAX.** The same headset's mic
+  worked in FireFly, which records through `arecord`, and its sound
+  played in Ember, but Ember heard nothing. The difference was the capture
+  buffer: Ember asked for 16 ms (reads every 4 ms), arecord about half a
+  second, and the RK3326's USB controller copes badly with USB audio
+  capture at such short intervals. Ember now asks for 100 ms, then
+  arecord's half second. It still reads 256 samples at a time, so the
+  vocoder gains only a period of delay (about 25 ms), not the buffer.
+- The vocoder keeps a period and a half of mic sound queued (16 ms at
+  least), so a mic that delivers 25 ms at a time doesn't run dry between.
+
+### Added
+- `ember.log` says what buffer and period the mic was given.
+  `EMBER_MIC_BUFFER_MS` sets the buffer to try first.
+
 ## [0.4.2] - 2026-11-21
 
 ### Fixed
@@ -106,6 +124,7 @@ and must match the release tag (`v` + version).
 - 720x720 screen with pages for play, tone, voice, space and device info.
 - 6 factory presets, settings saved automatically.
 
+[0.4.3]: https://github.com/ruderigo/Ember/releases/tag/v0.4.3
 [0.4.2]: https://github.com/ruderigo/Ember/releases/tag/v0.4.2
 [0.4.1]: https://github.com/ruderigo/Ember/compare/v0.4.0...v0.4.2
 [0.4.0]: https://github.com/ruderigo/Ember/releases/tag/v0.4.0
