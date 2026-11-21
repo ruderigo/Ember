@@ -7,7 +7,8 @@
 DIR="$(cd "$(dirname "$0")" && pwd)/ember"
 cd "$DIR" || exit 1
 
-sudo chmod 666 /dev/tty1 2>/dev/null
+# Only where sudo needs no password: a launch from a dock or menu has nowhere to type one.
+sudo -n chmod 666 /dev/tty1 2>/dev/null || true
 printf "\033c" > /dev/tty1
 
 needs_build=0

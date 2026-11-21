@@ -198,11 +198,17 @@ static void *mic_thread(void *arg) {
     try_realtime(60);
     static short in[512];
     static float f[512];
+    /* A device that kept failing reads is reopened with the longer buffer
+     * (a 16 ms one can overrun on a busy USB headset); and it stays shown,
+     * not dropped and found again, as long as it's still plugged in. */
+    char last_dev[64] = "";
+    int use_longer = 0, connected = 0;
     while (!io_quit) {
         char dev[64], label[96];
         if (getenv("EMBER_MIC")) { snprintf(dev, sizeof dev, "%s", getenv("EMBER_MIC")); snprintf(label, sizeof label, "%s", dev); }
         else if (!find_usb_pcm(SND_PCM_STREAM_CAPTURE, dev, sizeof dev, label, sizeof label)) {
-            IO.mic_name[0] = 0; IO.mic_why[0] = 0;
+            if (connected) { mic_set_connected(0); connected = 0; }
+            IO.mic_name[0] = 0; IO.mic_why[0] = 0; last_dev[0] = 0; use_longer = 0;
             mic_log("no USB capture device (plug a USB mic or headset)");
             msleep(1500); continue;
         }
@@ -215,8 +221,9 @@ static void *mic_thread(void *arg) {
             char l[256]; snprintf(l, sizeof l, "%s (%s)", m, label); mic_log(l);
             msleep(1500); continue;
         }
-        int longer = 0;
-        err = snd_pcm_set_params(pcm, SND_PCM_FORMAT_S16_LE, SND_PCM_ACCESS_RW_INTERLEAVED, 1, 48000, 1, 16000);
+        if (strcmp(dev, last_dev) != 0) { use_longer = 0; snprintf(last_dev, sizeof last_dev, "%s", dev); }
+        int longer = use_longer;
+        err = longer ? -1 : snd_pcm_set_params(pcm, SND_PCM_FORMAT_S16_LE, SND_PCM_ACCESS_RW_INTERLEAVED, 1, 48000, 1, 16000);
         if (err < 0) {  /* some USB mics refuse a buffer this short (as outputs do): take a longer one */
             longer = 1;
             err = snd_pcm_set_params(pcm, SND_PCM_FORMAT_S16_LE, SND_PCM_ACCESS_RW_INTERLEAVED, 1, 48000, 1, 60000);
@@ -234,12 +241,26 @@ static void *mic_thread(void *arg) {
         IO.mic_why[0] = 0;
         set_str(IO.mic_dev, sizeof IO.mic_dev, dev);
         set_str(IO.mic_name, sizeof IO.mic_name, label);
-        int connected = 0, level = 0;
+        int level = 0, fails = 0;
+        snd_pcm_sframes_t why = 0;
         IO.mic_silent_ms = 0;
         while (!io_quit) {
             snd_pcm_sframes_t r = snd_pcm_readi(pcm, in, 256);
             if (r == -EPIPE || r == -ESTRPIPE || r == -EINTR) { snd_pcm_recover(pcm, (int)r, 1); continue; }
-            if (r < 0) break;                               /* unplugged */
+            if (r < 0) {
+                /* Not taken for "unplugged" at once: some USB headsets return
+                 * an I/O error now and then while the device is fine (and its
+                 * playback keeps going). Recovered in place; after 8 in a row
+                 * it's reopened, and only a device gone from the cards is gone. */
+                why = r;
+                char l[200]; snprintf(l, sizeof l, "%s read error: %s", dev, snd_strerror((int)r)); mic_log(l);
+                if (++fails >= 8) break;
+                if (snd_pcm_recover(pcm, (int)r, 1) < 0) snd_pcm_prepare(pcm);
+                msleep(20);
+                continue;
+            }
+            fails = 0;
+            if (r == 0) continue;
             int peak = 0;
             for (int i = 0; i < r; i++) {
                 f[i] = in[i] * (1.f / 32768.f);
@@ -264,13 +285,28 @@ static void *mic_thread(void *arg) {
                 char l[160]; snprintf(l, sizeof l, "%s hears sound", dev); mic_log(l);
             }
         }
-        mic_set_connected(0);
-        IO.mic_name[0] = 0;
+        snd_pcm_close(pcm);
         IO.mic_level = 0;
+        if (io_quit) break;
+        char again[64], again_label[96];
+        int still = getenv("EMBER_MIC") ||
+                    (find_usb_pcm(SND_PCM_STREAM_CAPTURE, again, sizeof again, again_label, sizeof again_label) &&
+                     strcmp(again, dev) == 0);
+        if (still) {
+            /* Still plugged in: kept on screen, reopened (with the longer
+             * buffer if the short one is what kept failing). */
+            char l[200]; snprintf(l, sizeof l, "%s reopening after %s%s", dev, snd_strerror((int)why),
+                                  longer ? "" : " (with the longer buffer)");
+            mic_log(l);
+            use_longer = 1;
+            msleep(300);
+            continue;
+        }
+        if (connected) { mic_set_connected(0); connected = 0; }
+        IO.mic_name[0] = 0;
         {
             char l[160]; snprintf(l, sizeof l, "%s gone (unplugged)", dev); mic_log(l);
         }
-        snd_pcm_close(pcm);
         msleep(800);
     }
     return NULL;

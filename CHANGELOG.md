@@ -3,6 +3,25 @@
 All notable changes to Ember. The version in `VERSION` is shown on screen
 and must match the release tag (`v` + version).
 
+## [0.4.2] - 2026-11-21
+
+### Fixed
+- **A USB headset's mic no longer flickers** "detected / not detected" on
+  the INFO page and the MIC line. Any read error other than an overrun
+  was taken for "unplugged": the mic was dropped, found again at once,
+  failed again, and so on, while the same headset's playback kept going.
+  A read error is now recovered in place; after 8 in a row the mic is
+  reopened, with the longer buffer; it's only "gone" when its card is
+  gone. It stays on screen meanwhile.
+- **Ember.sh no longer stops at a password prompt.** It ran `sudo chmod`
+  on the console; where sudo asks for a password (a launch from a dock has
+  nowhere to type one) it waited forever. It now uses `sudo -n` and goes
+  on without it.
+
+### Added
+- `ember.log` notes each mic read error with ALSA's reason, and each
+  reopen: the cause of a flicker, readable over ssh.
+
 ## [0.4.1] - 2026-11-20
 
 ### Fixed
@@ -87,6 +106,8 @@ and must match the release tag (`v` + version).
 - 720x720 screen with pages for play, tone, voice, space and device info.
 - 6 factory presets, settings saved automatically.
 
+[0.4.2]: https://github.com/ruderigo/Ember/releases/tag/v0.4.2
+[0.4.1]: https://github.com/ruderigo/Ember/compare/v0.4.0...v0.4.2
 [0.4.0]: https://github.com/ruderigo/Ember/releases/tag/v0.4.0
 [0.3.0]: https://github.com/ruderigo/Ember/releases/tag/v0.3.0
 [0.2.1]: https://github.com/ruderigo/Ember/commits/main
