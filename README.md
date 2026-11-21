@@ -173,6 +173,9 @@ in `user_presets.cfg`; edit a slot's `name=` line over SSH to rename it.
   empty with "muted?", its capture is off in the device's own mixer: run
   `alsamixer -c N` (N from that line), press F4 for capture, and raise or
   unmute the mic (space toggles capture).
+- **Mic buffer**: Ember asks a USB mic for a 100 ms buffer (then half a
+  second), as `arecord` does; `EMBER_MIC_BUFFER_MS=40` in Ember.sh's
+  environment tries a shorter one for less vocoder delay.
 - **Mic log**: `ember/ember.log` notes what the mic did (opened, refused
   and why, hears sound, only silence, unplugged), to read later with
   `ssh ark@r36max.local cat /roms/ports/ember/ember.log`.

@@ -170,11 +170,15 @@ static void handle_event(Event e) {
 /* ------------------------------------------------------------- mic buffer */
 
 #define MIC_RING   16384
-#define MIC_TARGET 768        /* samples kept in the buffer (16 ms) */
+/* Samples kept queued: 16 ms at least, and one and a half of the mic's
+ * periods, since it delivers a period at a time (a USB mic on the R36MAX
+ * needs ones as long as arecord's to keep working: see io.c). */
+static _Atomic int mic_target_n = 768;
+#define MIC_TARGET (atomic_load_explicit(&mic_target_n, memory_order_relaxed))
 static float mic_ring[MIC_RING];
 static _Atomic unsigned mic_w, mic_r;
 static unsigned mic_rpos;
-static float mic_frac, mic_ratio = 1.f, mic_fill_avg = MIC_TARGET;
+static float mic_frac, mic_ratio = 1.f, mic_fill_avg = 768;
 static int mic_primed;
 
 void mic_push(const float *x, int n) {
@@ -189,6 +193,13 @@ void mic_push(const float *x, int n) {
 }
 
 void mic_set_connected(int on) { atomic_store(&mic_connected, on); }
+
+void mic_set_period(int frames) {
+    int t = frames * 3 / 2;
+    if (t < 768) t = 768;
+    if (t > MIC_RING / 4) t = MIC_RING / 4;
+    atomic_store(&mic_target_n, t);
+}
 
 /* Pull one block, resampling slightly faster or slower so the buffer stays
  * near MIC_TARGET. This absorbs the clock difference between the USB mic

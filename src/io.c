@@ -222,11 +222,21 @@ static void *mic_thread(void *arg) {
             msleep(1500); continue;
         }
         if (strcmp(dev, last_dev) != 0) { use_longer = 0; snprintf(last_dev, sizeof last_dev, "%s", dev); }
+        /* Buffers like arecord's (FireFly records with it, and the same
+         * headset's mic works there): 100 ms, or half a second. On the
+         * R36MAX a USB mic asked for 16 ms (4 ms periods) didn't work while
+         * its playback did: its USB controller copes badly with short
+         * isochronous capture periods. Ember reads 256 samples at a time, so
+         * this adds only a period of delay, not the whole buffer.
+         * EMBER_MIC_BUFFER_MS sets it. */
         int longer = use_longer;
-        err = longer ? -1 : snd_pcm_set_params(pcm, SND_PCM_FORMAT_S16_LE, SND_PCM_ACCESS_RW_INTERLEAVED, 1, 48000, 1, 16000);
-        if (err < 0) {  /* some USB mics refuse a buffer this short (as outputs do): take a longer one */
+        unsigned want_us = 100000;
+        if (getenv("EMBER_MIC_BUFFER_MS")) want_us = (unsigned)atoi(getenv("EMBER_MIC_BUFFER_MS")) * 1000u;
+        if (want_us < 10000) want_us = 10000;
+        err = longer ? -1 : snd_pcm_set_params(pcm, SND_PCM_FORMAT_S16_LE, SND_PCM_ACCESS_RW_INTERLEAVED, 1, 48000, 1, want_us);
+        if (err < 0) {  /* refused, or kept failing: arecord's own default */
             longer = 1;
-            err = snd_pcm_set_params(pcm, SND_PCM_FORMAT_S16_LE, SND_PCM_ACCESS_RW_INTERLEAVED, 1, 48000, 1, 60000);
+            err = snd_pcm_set_params(pcm, SND_PCM_FORMAT_S16_LE, SND_PCM_ACCESS_RW_INTERLEAVED, 1, 48000, 1, 500000);
         }
         if (err < 0) {
             char m[96]; snprintf(m, sizeof m, "%s setup failed: %s", dev, snd_strerror(err));
@@ -235,7 +245,12 @@ static void *mic_thread(void *arg) {
             snd_pcm_close(pcm); msleep(1500); continue;
         }
         {
-            char l[256]; snprintf(l, sizeof l, "%s open: %s%s", dev, label, longer ? " (took the longer buffer)" : "");
+            snd_pcm_uframes_t buf = 0, per = 0;
+            snd_pcm_get_params(pcm, &buf, &per);
+            mic_set_period((int)per);
+            char l[256]; snprintf(l, sizeof l, "%s open: %s, buffer %lu ms, period %lu ms%s", dev, label,
+                                  (unsigned long)buf * 1000 / 48000, (unsigned long)per * 1000 / 48000,
+                                  longer ? " (the longer buffer)" : "");
             mic_log(l);
         }
         IO.mic_why[0] = 0;
