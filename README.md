@@ -93,6 +93,8 @@ not Ember): headphones sound clean.
 **Volume.** PLAY → *Volume*, and the handheld's volume buttons, which work
 while Ember is open.
 
+![The INFO page: the output, the latency, the mic and its level](docs/screen-info.png)
+
 **The mic.** For the vocoder (VOICE → *Source* → USB mic). Ember uses the
 first USB sound device with a mic (a USB mic, a headset, a USB-C adapter
 with a mic input), and can have it plugged in or out while it runs; a
