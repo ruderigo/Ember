@@ -817,9 +817,9 @@ int main(int argc, char **argv) {
         page = shot_page; shot_mode = 1;
         M.loop_state = LOOP_DUB; M.loop_len = 48000 * 16; M.loop_pos = 48000 * 6;
         U.hold = 1; P.vocmix = 0.85f; P.vocsrc = 0;
-        snprintf((char *)IO.out_name, sizeof IO.out_name, "plughw:0,0");
         snprintf((char *)IO.mic_name, sizeof IO.mic_name, "USB Composite Device");
         snprintf((char *)IO.mic_dev, sizeof IO.mic_dev, "plughw:1,0");
+        snprintf((char *)IO.out_name, sizeof IO.out_name, "plughw:1,0  USB Composite Device");  /* as on a USB headset */
         IO.mic_level = getenv("EMBER_SHOT_MUTED") ? 0 : 62;
         IO.mic_silent_ms = getenv("EMBER_SHOT_MUTED") ? 5000 : 0;
         snprintf((char *)IO.midi_name, sizeof IO.midi_name, "Impact LX61+");
