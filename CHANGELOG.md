@@ -3,6 +3,18 @@
 All notable changes to Ember. The version in `VERSION` is shown on screen
 and must match the release tag (`v` + version).
 
+## [0.4.4] - 2026-11-21
+
+### Documentation
+- A new [QUICKSTART.md](QUICKSTART.md): install, the buttons, the sound,
+  the mic, recordings, help, on one page.
+- The README has a **Sound** section: what Ember plays (only what you
+  play: no clicks, notifications or start-up sound), where (USB sound
+  devices followed while it runs, the built-in speaker otherwise), the
+  volume, the mic (which device, its buffer, recovery, the INFO line,
+  ember.log), timing and recordings.
+- No change to the program.
+
 ## [0.4.3] - 2026-11-21
 
 ### Fixed
@@ -124,6 +136,7 @@ and must match the release tag (`v` + version).
 - 720x720 screen with pages for play, tone, voice, space and device info.
 - 6 factory presets, settings saved automatically.
 
+[0.4.4]: https://github.com/ruderigo/Ember/releases/tag/v0.4.4
 [0.4.3]: https://github.com/ruderigo/Ember/releases/tag/v0.4.3
 [0.4.2]: https://github.com/ruderigo/Ember/releases/tag/v0.4.2
 [0.4.1]: https://github.com/ruderigo/Ember/compare/v0.4.0...v0.4.2

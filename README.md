@@ -17,6 +17,9 @@ vowel voice, and loops and records what you play.
 
 ![Ember on the VOICE page](docs/screen-voice.png)
 
+New to Ember? **[QUICKSTART.md](QUICKSTART.md)**: install, the buttons,
+the sound and the mic on one page.
+
 ## Install or update
 
 Grab the latest package from
@@ -68,6 +71,47 @@ Pages: **PLAY** (preset, key, scale, chord type, octave, bass, volume),
 **TONE** (oscillators, filter, envelopes, tape), **VOICE** (vocoder),
 **SPACE** (chorus, reverb), **LOOP** (looper and recorder), **INFO**
 (devices, latency, raw button numbers).
+
+## Sound
+
+**What Ember plays.** Only what you play: the pads, the bass, the vocoder
+or the vowel voice, the effects, and the loop when the looper runs. No key
+clicks, no notification or start-up sounds; silence when nothing is
+playing.
+
+**Where it plays.** On a USB sound device when one is plugged in (USB-C
+headphones, a headset, a DAC), otherwise the handheld's built-in speaker.
+Ember follows it while it runs: plug headphones in and the sound moves to
+them, pull them out and it comes back to the speaker. The INFO page's
+**Output** line names the device; the header's **OUT** light is green
+while it plays, red when the device is busy (another app has it: Ember
+keeps retrying). `EMBER_OUT=plughw:0,0` (any ALSA device) fixes the output.
+A USB mic that also has a headphone output counts as a USB sound device.
+On some R36MAX units the built-in speaker is noisy (the sound chip's setup,
+not Ember): headphones sound clean.
+
+**Volume.** PLAY → *Volume*, and the handheld's volume buttons, which work
+while Ember is open.
+
+![The INFO page: the output, the latency, the mic and its level](docs/screen-info.png)
+
+**The mic.** For the vocoder (VOICE → *Source* → USB mic). Ember uses the
+first USB sound device with a mic (a USB mic, a headset, a USB-C adapter
+with a mic input), and can have it plugged in or out while it runs; a
+USB MIDI keyboard isn't taken for one. It reads it at 48 kHz with a
+100 ms buffer, or half a second if the device refuses that, as `arecord`
+does (`EMBER_MIC_BUFFER_MS` tries another). A read error is recovered in
+place; the mic is only "gone" when it's unplugged. The INFO page's **Mic**
+line shows its name and its level (`[######....]`), why it won't open, or
+"muted?" when it hears only silence. `EMBER_MIC=plughw:1,0` forces one.
+What it does goes to `ember/ember.log`.
+
+**Timing.** Ember plays with a short buffer for low latency; `EMBER_PERIOD`
+(e.g. 512) makes it longer if it crackles. The INFO page shows the latency
+and counts dropouts (xruns).
+
+**Recording.** *Record to SD* and *Save loop to SD* write what you hear
+(48 kHz, 16-bit stereo WAV) to `ember/recordings/`. See below.
 
 ## Looper
 
